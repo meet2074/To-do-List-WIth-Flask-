@@ -1,8 +1,9 @@
 from flask import Flask
 from src.config import Env
+from flask_jwt_extended import JWTManager
 from database.database import init_database
 from src.resources.api.user_api import user_blueprint
-from flask_mail import Mail
+from src.mail import mail
 
 app = Flask(__name__)   
 
@@ -16,7 +17,9 @@ app.config['MAIL_PASSWORD'] = Env.MAIL_PASSWORD
 app.config['MAIL_DEFAULT_SENDER'] = Env.MAIL_DEFAULT_SENDER
 app.config['MAIL_USE_SSL'] = False  
 
-mail = Mail(app)
+JWTManager(app)
+
+mail.init_app(app)
 
 init_database(app)
 
