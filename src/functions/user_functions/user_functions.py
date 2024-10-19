@@ -2,8 +2,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask import abort, jsonify
 from jose import jwt
 from src.mail import mail
+from src.utils.hash import verify_password
 from src.resources.models.user_model import User, Otp
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError,NoResultFound,DatabaseError
 from random import randint
 from flask_mail import Message
 from src.config import Env
@@ -17,6 +18,7 @@ access_token_exp_min = 30
 refresh_token_exp_days = 7
 algo = "HS256"
 
+#--------------user_registration---------------------------#
 
 def create_user(db: SQLAlchemy, user_data: dict):
     try:
@@ -39,10 +41,17 @@ def create_user(db: SQLAlchemy, user_data: dict):
 
 
     except IntegrityError as err:
-        raise abort(403)
-    except Exception as err:
-        return jsonify({"error:", err})
-
+        raise abort(403,"Data already exist!")
+    except DatabaseError as err:
+        raise abort(500,"Database Error!")
+    
+    
+def get_user(id:str):
+    try:
+        user = User.query.filter(User.id==id).one()
+        return user
+    except Exception:
+        abort(500,"A database Error!")
 
 def create_otp(db: SQLAlchemy, email: str):
     otp = randint(100000, 999999)
@@ -66,38 +75,36 @@ def create_otp(db: SQLAlchemy, email: str):
             body=f"otp - {otp}",
         )
         mail.send(msg)
-    except Exception as err:
-        abort(400)
+    except NoResultFound as err:
+        abort(404,"Not Found!")
 
 
 def verify_otp(db:SQLAlchemy,otp: int, email: str):
     try:
-        # breakpoint()
         user = User.query.filter(User.email == email).one()
         db_otp = Otp.query.filter(Otp.userid == user.id).one()
         
         current_time = datetime.now()
         otp_expiration_time = db_otp.created_at + timedelta(minutes=otp_exp_min)
-        # breakpoint()  
         
         if db_otp.otp == otp:
             if current_time<otp_expiration_time:
-                # breakpoint()
                 Otp.query.filter(Otp.otp == otp).delete()
+                user.is_deleted= False
+                user.is_active = True
                 db.session.commit()
                 return True
-                # raise abort(401) 
             else:
                 return False
         return False
-    except Exception:
-        abort(500)
+    except NoResultFound:
+        abort(404,"NO such otp!")
 
 def create_access_token(email:str):
     try:
         # breakpoint()
         user = User.query.filter(User.email==email).one()
-        access_token_exp_time = datetime.now(tz=timezone.utc) + timedelta(minutes=access_token_exp_min)
+        access_token_exp_time = datetime.now(tz=timezone.utc) + timedelta(hours=access_token_exp_min)
         
         payload = {"id":user.id,"name":user.first_name,"sub":"user","type":"access_token","exp":access_token_exp_time}
 
@@ -109,13 +116,59 @@ def create_access_token(email:str):
 def create_refresh_token(email:str):
     try:
         user = User.query.filter(User.email==email).one()
-        access_token_exp_time = datetime.now(tz=timezone.utc) + timedelta(minutes=access_token_exp_min)
+        refresh_token_exp_time = datetime.now(tz=timezone.utc) + timedelta(days=refresh_token_exp_days)
         
-        payload = {"id":user.id,"name":user.first_name,"sub":"user","type":"refresh_token","exp":access_token_exp_time}
+        payload = {"id":user.id,"name":user.first_name,"sub":"user","type":"refresh_token","exp":refresh_token_exp_time}
 
         token = jwt.encode(payload,key=Env.SECRET_KEY,algorithm=algo)
         return token
     except Exception:
         abort(500)
+
+
+def update_user(db:SQLAlchemy,data:dict,id:str):
+    try:
+        user = User.query.filter(User.id==id).one()
+        for key, val in data.items():
+            setattr(user, key, val)
+        user.updated_at = datetime.now()
+        db.session.commit()
+    except Exception :
+        abort(500,"A database error!")
+
+def delete_user(db:SQLAlchemy, id:str):
+    try:
+        user = User.query.filter(User.id == id ).one()
+        user.is_deleted = True
+        db.session.commit()
+    except Exception :
+        abort(500,"A database error!")
+        
+
+#--------------------------------user_login------------------------------------#
+
+def user_login(email:str,password:str):
+    try:
+        user = User.query.filter(User.email==email).one_or_none()
+        # breakpoint()
+        if not user or user.is_deleted:
+            return "No user with such email id."
+        
+        verified = verify_password(password,user.password)
+        if verified:
+            access_token = create_access_token(email)
+            refresh_token = create_refresh_token(email)
+
+            return {"access_token":access_token,"refresh_token":refresh_token}
+        else:
+            return "Incorrect Password!"
+    except Exception:
+        abort(500,"A database error!")
+        
     
+    
+
+      
+    
+
     
