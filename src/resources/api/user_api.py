@@ -35,7 +35,6 @@ def verify():
     # breakpoint()
 
     if is_verified:
-        db.session.commit()
         access_token = create_access_token(data.get("email"))
         refresh_token = create_refresh_token(data.get("email"))
 

@@ -5,6 +5,7 @@ from src.mail import mail
 from src.utils.hash import verify_password
 from src.resources.models.user_model import User, Otp
 from sqlalchemy.exc import IntegrityError,NoResultFound,DatabaseError
+from werkzeug.exceptions import Forbidden,InternalServerError,NotFound
 from random import randint
 from flask_mail import Message
 from src.config import Env
@@ -41,17 +42,16 @@ def create_user(db: SQLAlchemy, user_data: dict):
 
 
     except IntegrityError as err:
-        raise abort(403,"Data already exist!")
-    except DatabaseError as err:
-        raise abort(500,"Database Error!")
-    
+        raise Forbidden("Data already exist!")
+    except Exception as err:
+        raise InternalServerError("A database error!")
     
 def get_user(id:str):
     try:
         user = User.query.filter(User.id==id).one()
         return user
     except Exception:
-        abort(500,"A database Error!")
+        raise InternalServerError("A database error!")
 
 def create_otp(db: SQLAlchemy, email: str):
     otp = randint(100000, 999999)
@@ -76,7 +76,7 @@ def create_otp(db: SQLAlchemy, email: str):
         )
         mail.send(msg)
     except NoResultFound as err:
-        abort(404,"Not Found!")
+        raise NotFound("No result Found!")
 
 
 def verify_otp(db:SQLAlchemy,otp: int, email: str):
@@ -94,11 +94,10 @@ def verify_otp(db:SQLAlchemy,otp: int, email: str):
                 user.is_active = True
                 db.session.commit()
                 return True
-            else:
-                return False
         return False
     except NoResultFound:
-        abort(404,"NO such otp!")
+        raise NotFound("No Otp Found!")
+
 
 def create_access_token(email:str):
     try:
@@ -111,7 +110,7 @@ def create_access_token(email:str):
         token = jwt.encode(payload,key=Env.SECRET_KEY,algorithm=algo)
         return token
     except Exception:
-        abort(500)
+        raise InternalServerError("A database error!")
 
 def create_refresh_token(email:str):
     try:
@@ -123,7 +122,7 @@ def create_refresh_token(email:str):
         token = jwt.encode(payload,key=Env.SECRET_KEY,algorithm=algo)
         return token
     except Exception:
-        abort(500)
+        raise InternalServerError("A database error!")
 
 
 def update_user(db:SQLAlchemy,data:dict,id:str):
@@ -134,7 +133,7 @@ def update_user(db:SQLAlchemy,data:dict,id:str):
         user.updated_at = datetime.now()
         db.session.commit()
     except Exception :
-        abort(500,"A database error!")
+        raise InternalServerError("A database error!")
 
 def delete_user(db:SQLAlchemy, id:str):
     try:
@@ -142,7 +141,7 @@ def delete_user(db:SQLAlchemy, id:str):
         user.is_deleted = True
         db.session.commit()
     except Exception :
-        abort(500,"A database error!")
+        raise InternalServerError("A database error!")
         
 
 #--------------------------------user_login------------------------------------#
@@ -150,7 +149,6 @@ def delete_user(db:SQLAlchemy, id:str):
 def user_login(email:str,password:str):
     try:
         user = User.query.filter(User.email==email).one_or_none()
-        # breakpoint()
         if not user or user.is_deleted:
             return "No user with such email id."
         
@@ -163,7 +161,7 @@ def user_login(email:str,password:str):
         else:
             return "Incorrect Password!"
     except Exception:
-        abort(500,"A database error!")
+        raise InternalServerError("A database error!")
         
     
     

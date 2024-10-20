@@ -2,9 +2,8 @@ from database.database import SQLAlchemy
 from src.resources.models.to_do_model import ToDo
 from src.resources.models.user_model import User
 from flask import abort
-from werkzeug.exceptions import NotFound,BadRequest
-from sqlalchemy.exc import NoResultFound
-from datetime import datetime,timezone,timedelta
+from werkzeug.exceptions import NotFound,BadRequest,Unauthorized,InternalServerError
+from datetime import datetime,timezone
 import uuid
 
 
@@ -21,7 +20,7 @@ def create_to_do_list(db:SQLAlchemy,data:dict,id:str):
         db.session.commit()
         db.session.refresh(list_data)
     except Exception:
-        abort(500,"An unknwond error!")
+        raise InternalServerError("A database error!")
 
 def get_all_list(id:str):
     try:
@@ -55,25 +54,26 @@ def update_one_list(db:SQLAlchemy,list_id:str , data:dict, userid:str):
             list_data.updated_at = datetime.now(tz=timezone.utc)
             db.session.commit()
         else:
-            abort()
-    # except Exception:
-    #     abort(401,"Can not update other's list!")
-    except NoResultFound:
-        abort(404,"No list Found!")
+            raise Unauthorized("Can't updated other's list!")
+    except AttributeError:
+        raise BadRequest("Invalid id")
 
 
 def delete_one_list(db:SQLAlchemy,id:str , userid:str):
     try:
-        data = ToDo.query.filter(ToDo.id==id).one()
+        # breakpoint()
+        data = ToDo.query.filter(ToDo.id==id).one_or_none()
 
         if data.userid!=userid:
-            abort(500,"Can't delete other's list!") 
+            raise Unauthorized("Can't delete other's list!") 
         if data.is_deleted:
-            abort(404,"No list found!")
+            raise NotFound("No list found!")
         else:
             data.is_deleted = True
-    except Exception:
-        abort(500,"An Unknown Error!")
+        db.session.commit()
+    except AttributeError:
+        raise BadRequest("Invalid id")
+    
 
         
 
