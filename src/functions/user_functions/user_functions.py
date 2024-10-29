@@ -101,9 +101,8 @@ def verify_otp(db:SQLAlchemy,otp: int, email: str):
 
 def create_access_token(email:str):
     try:
-        # breakpoint()
         user = User.query.filter(User.email==email).one()
-        access_token_exp_time = datetime.now(tz=timezone.utc) + timedelta(hours=access_token_exp_min)
+        access_token_exp_time = datetime.now(tz=timezone.utc) + timedelta(days=access_token_exp_min)
         
         payload = {"id":user.id,"name":user.first_name,"sub":"user","type":"access_token","exp":access_token_exp_time}
 

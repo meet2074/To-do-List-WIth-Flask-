@@ -1,7 +1,9 @@
 from flask import Blueprint,request,jsonify
 from flask_jwt_extended import jwt_required,get_jwt
 from database.database import db
-from src.functions.to_do_list_functions.to_do_crud import *
+from datetime import datetime
+from src.functions.to_do_list_functions.to_do_basic import *
+from src.functions.to_do_list_functions.reminder import *
 
 
 to_do_blueprint = Blueprint("to_do",__name__)
@@ -11,6 +13,7 @@ to_do_blueprint = Blueprint("to_do",__name__)
 def create():
     data = request.get_json()
     payload = get_jwt()
+    
     create_to_do_list(db,data,payload.get("id"))
     return "list created!"
 
@@ -47,6 +50,18 @@ def delete(id):
     payload = get_jwt()
     delete_one_list(db,id,payload.get("id"))
     return "Deleted!"
+
+@to_do_blueprint.route("/to-do/<string:id>/set-remainder",methods = ["POST"])
+@jwt_required()
+def remainder(id):
+    data = request.json
+    request_time = data["reminder"]
+    payload = get_jwt()
+    userid = payload.get("id")
+    time = datetime.strptime(request_time,'%Y-%m-%d %H:%M:%S.%f')
+    add_reminder(db,time,id,userid) 
+    return "Reminder added succesfully!"   
+
 
     
 
